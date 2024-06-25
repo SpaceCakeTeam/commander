@@ -4,12 +4,12 @@ BIN_DIR=./bin
 build-commander:
 	rustc commander/main.rs --out-dir ./${BIN_DIR}/commander
 
-.PHONY: build-hoplite
-build-hoplite:
-	rustc hoplite/main.rs --out-dir ./${BIN_DIR}/hoplite
+.PHONY: build-agent
+build-agent:
+	rustc agent/main.rs --out-dir ./${BIN_DIR}/agent
 
 .PHONY: build
-build: build-commander build-hoplite
+build: build-commander build-agent
 
 .PHONY: clean
 clean:

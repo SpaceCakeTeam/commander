@@ -14,4 +14,3 @@ build: build-commander build-hoplite
 .PHONY: clean
 clean:
 	@rm -rf ${BIN_DIR}
-

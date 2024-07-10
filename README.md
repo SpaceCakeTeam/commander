@@ -1,9 +1,21 @@
-# Rust Sockets
+# Commander
 
-WIP
+Commander is a gRPC-based tool that provides client/server applicatinos to exchange generic messages between them.
 
-Build the project
+## Architecture
+
+![architecture](./docs/architecture.drawio.png)
+
+## Contribute and develop
+
+Build the project:
 
 ```sh
 make build
+```
+
+Clean build directory:
+
+```sh
+make clean
 ```

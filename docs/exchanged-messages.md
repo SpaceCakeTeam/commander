@@ -2,21 +2,12 @@
 
 Exchanged message format follows this spec:
 
-- Command
-- DataRecord
+- Message
 
-## Command
+## Message
 
 |field|type|required|description|
 |-----|----|--------|-----------|
 | name | string | y | name of the command |
 | timestamp | string | y | ISODate of cmd gen |
-| payload | any | y | command payload |
-
-## DataRecord
-
-|field|type|required|description|
-|-----|----|--------|-----------|
-| name | string | y | name of the record datatype  |
-| timestamp | string | y | ISODate of record gen |
-| payload | buffer | y | command payload |
+| payload | bytes buffer | y | message payload |

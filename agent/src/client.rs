@@ -11,12 +11,12 @@ use pb::{commander_client::CommanderClient, Message};
 fn message_requests_iter() -> impl Stream<Item = Message> {
   tokio_stream::iter(1..usize::MAX).map(|i| Message {
       name: format!("msg {:02}", i),
-      timestamp: "",
+      timestamp: "".to_string(),
       payload: vec![],
   })
 }
 
-async fn bidirectional_streaming_echo_throttle(client: &mut CommanderClient<Channel>, dur: Duration) {
+pub async fn bidirectional_streaming_echo_throttle(client: &mut CommanderClient<Channel>, dur: Duration) {
   let in_stream = message_requests_iter().throttle(dur);
 
   let response = client
@@ -28,6 +28,6 @@ async fn bidirectional_streaming_echo_throttle(client: &mut CommanderClient<Chan
 
   while let Some(received) = resp_stream.next().await {
       let received = received.unwrap();
-      println!("\treceived message: `{}`", received.message);
+      println!("\treceived message: `{:#?}`", received);
   }
 }

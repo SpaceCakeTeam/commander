@@ -12,6 +12,17 @@
 - opens connection to the commander
 - send the client version
 
+```mermaid
+sequenceDiagram
+  participant Agent
+  participant Commander
+
+  Agent->>Commander: Connect
+  Commander-->>Agent: Ask the client version
+  Agent->>Commander: Responds with the client version
+  Commander-->>Agent: OK/KO with error message
+```
+
 ## Use case 2: Invoke K8s API
 
 ### Commander

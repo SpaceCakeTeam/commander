@@ -5,7 +5,7 @@ pub mod pb {
 use pb::Message;
 use tokio::sync::mpsc;
 
-use std::{error::Error, io::ErrorKind, pin::Pin};
+use std::{error::Error, io::ErrorKind, pin::Pin, time::{SystemTime, UNIX_EPOCH}};
 
 use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
@@ -62,7 +62,7 @@ impl pb::commander_server::Commander for CommanderServer {
             while let Some(result) = in_stream.next().await {
                 match result {
                     Ok(v) => tx
-                        .send(Ok(Message { name: v.name, timestamp: "ciao".to_string(), payload: Vec::new() }))
+                        .send(Ok(Message { name: v.name, timestamp: 123, payload: Vec::new() }))
                         .await
                         .expect("working rx"),
                     Err(err) => {
@@ -86,10 +86,36 @@ impl pb::commander_server::Commander for CommanderServer {
         });
 
         // echo just write the same data that was received
-        let out_stream = ReceiverStream::new(rx);
+        let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
 
         Ok(Response::new(
             Box::pin(out_stream) as Self::ChannelStream
         ))
+    }
+}
+
+async fn send_welcome_message(tx: mpsc::Sender<Message>) {
+    let _ = tx.send(Message {
+        name: "handshake".to_string(),
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+            .try_into()
+            .unwrap(),
+        payload: Vec::new(),
+    }).await;
+}
+
+#[cfg(test)]
+mod server_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_welcome_message() {
+        let (tx, mut rx) = mpsc::channel(1);
+        send_welcome_message(tx).await;
+        let actual = rx.recv().await;
+        assert_eq!("handshake".to_string(), actual.unwrap().name);
     }
 }

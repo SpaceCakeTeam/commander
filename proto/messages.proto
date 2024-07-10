@@ -1,0 +1,12 @@
+syntax = "proto3";
+package messages;
+
+service Commander {
+    rpc Channel (stream Message) returns (stream Message);
+}
+
+message Message {
+    string name = 1;
+    string timestamp = 2;
+    bytes payload = 3;
+}

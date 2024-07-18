@@ -2,7 +2,7 @@ pub mod pb {
   tonic::include_proto!("messages");
 }
 
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio_stream::{Stream, StreamExt};
 use tonic::transport::Channel;
 
@@ -11,7 +11,12 @@ use pb::{commander_client::CommanderClient, Message};
 fn message_requests_iter() -> impl Stream<Item = Message> {
   tokio_stream::iter(1..usize::MAX).map(|i| Message {
       name: format!("msg {:02}", i),
-      timestamp: "".to_string(),
+      timestamp: SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
+        .try_into()
+        .unwrap(),
       payload: vec![],
   })
 }

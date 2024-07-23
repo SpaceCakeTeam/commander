@@ -7,6 +7,6 @@ service Commander {
 
 message Message {
     string name = 1;
-    string timestamp = 2;
+    uint64 timestamp = 2;
     bytes payload = 3;
 }

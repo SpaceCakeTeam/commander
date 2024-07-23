@@ -233,8 +233,8 @@ mod server_tests {
 
     #[tokio::test]
     async fn test_welcome_message() {
-        let (tx, mut rx) = mpsc::channel(1);
-        send_welcome_message(tx).await;
+        let (mut tx, mut rx) = mpsc::channel(1);
+        send_welcome_message(&mut tx).await;
         let actual = rx.recv().await;
         assert_eq!("handshake".to_string(), actual.unwrap().unwrap().name);
     }

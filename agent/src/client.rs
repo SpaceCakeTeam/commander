@@ -32,16 +32,36 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
 
   let mut resp_stream = response.into_inner();
 
-  while let Some(received) = resp_stream.next().await {
-    let received = received.unwrap();
-    println!("received {:#?}", received);
-    send_version(&mut tx).await;
+  // while let Some(received) = resp_stream.next().await {
+  //   println!("AAAAAAAAAAAAAAAAAAH");
+  //   let received = received.unwrap();
+  //   println!("received {:#?}", received);
+  //   send_version(&mut tx).await;
+  //   println!("sent {:#?}", timenow());
+  // }
+
+  loop {
+    match resp_stream.next().await {
+      Some(received) => {
+        println!("AAAAAAAAAAAAAAAAAAH");
+        let received = received.unwrap();
+        println!("received {:#?}", received);
+        send_version(&mut tx).await;
+        println!("sent {:#?}", timenow());
+      },
+      None => {
+        println!("UUUUUUUUUUUUUUUH");
+        println!("sent {:#?}", timenow());
+      }
+    }
   }
+
+  println!("EXIT FROM WHILE LOOP");
 
   // FIXME: sleep blocks the process and allows commander to have time processing the message,
   // without this everything crashes. We have to find a way to keep the agent running and keep
   // the connection alive!
-  sleep(Duration::from_secs(5))
+  // sleep(Duration::from_secs(5))
 }
 
 async fn send_version(str: &mut Sender<Message>) {
@@ -56,6 +76,19 @@ async fn send_version(str: &mut Sender<Message>) {
     payload: Vec::new()
   }).await;
 }
+
+// async fn send_version_2(str: &mut Sender<Message>) {
+//   let _ =  str.send(Message{
+//      name: "handshake-2".to_string(),
+//      timestamp: SystemTime::now()
+//        .duration_since(UNIX_EPOCH)
+//        .unwrap()
+//        .as_millis()
+//        .try_into()
+//        .unwrap(),
+//      payload: Vec::new()
+//    }).await;
+//  }
 
 #[cfg(test)]
 mod client_tests {

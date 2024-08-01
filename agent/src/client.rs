@@ -23,9 +23,12 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
         println!("received message {:#?}", received);
 
         let resp = get_response_message(received);
-        send2server(&mut tx, resp).await;
+        match resp {
+          Some(message_to_send) => send2server(&mut tx, message_to_send).await,
+          _ => (),
+        }
 
-        println!("sent message response {:#?}", timenow());
+        println!("processed message {:#?}", timenow());
       },
       None => {
         println!("Received None from stream :( at {:#?}", timenow());
@@ -37,10 +40,10 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
   println!("closing client!");
 }
 
-fn get_response_message(received_message: Message) -> Message {
+fn get_response_message(received_message: Message) -> Option<Message> {
   match received_message.name.as_str() {
-    "handshake" => build_version_message(),
-    _ => Message { name: "err".to_string(), timestamp: timenow(), payload: Vec::new() },
+    "handshake" => Some(build_version_message()),
+    _ => None,
   }
 }
 

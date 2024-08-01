@@ -64,7 +64,7 @@ mod client_tests {
       payload: Vec::new(),
     };
 
-    let recv: Message = get_response_message(msg);
-    assert_eq!("handshake_response", recv.name)
+    let recv = get_response_message(msg);
+    assert_eq!("handshake_response", recv.unwrap().name)
   }
 }

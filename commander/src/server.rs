@@ -65,7 +65,7 @@ impl pb::commander_server::Commander for CommanderServer {
         &self,
         req: Request<Streaming<Message>>,
     ) -> ChannelResult<Self::ChannelStream> {
-        println!("EchoServer::bidirectional_streaming_echo");
+        println!("new client connected");
 
         let mut in_stream: Streaming<Message> = req.into_inner();
         let (mut tx, rx) = mpsc::channel(1);
@@ -73,18 +73,14 @@ impl pb::commander_server::Commander for CommanderServer {
         // let mut tx1 = tx.clone();
         let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
 
+        println!("sending welcome message");
         send_welcome_message(&mut tx).await;
-        // this spawn here is required if you want to handle connection error.
-        // If we just map `in_stream` and write it back as `out_stream` the `out_stream`
-        // will be dropped when connection error occurs and error will never be propagated
-        // to mapped version of `in_stream`.
-        println!("BEFORE SPAWN");
+
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
-                println!("received some result");
                 match result {
                     Ok(v) => {
-                        println!("MESSAGE READ {:#?}: {:#?}", timenow(), v);
+                        println!("received message from client {:#?}: {:#?}", timenow(), v);
                         // sleep(Duration::from_secs(10));
                         // send_welcome_message(&mut tx).await;
                         // tx
@@ -93,94 +89,30 @@ impl pb::commander_server::Commander for CommanderServer {
                         //     .expect("working rx")
                     },
                     Err(err) => {
-                        println!("Received error {:#?}: {:#?}", timenow(), err);
+                        println!("received error from client {:#?}: {:#?}", timenow(), err);
                         if let Some(io_err) = match_for_io_error(&err) {
                             if io_err.kind() == ErrorKind::BrokenPipe {
-                                // here you can handle special case when client
-                                // disconnected in unexpected way
                                 eprintln!("\tclient disconnected: broken pipe");
                                 break;
                             }
                         }
-
-                        // match tx.send(Err(err)).await {
-                        //     Ok(_) => (),
-                        //     Err(_err) => break, // response was dropped
-                        // }
                     }
                 }
             }
-            println!("\tread stream ended {:#?}", timenow());
+            println!("\tclient stream ended {:#?}", timenow());
         });
 
         tokio::spawn(async move {
-            println!("BEFORE LOOP");
             loop {
                 sleep(Duration::from_secs(5));
-
-                println!("BEFORE HEARTBEAT");
-                // println!("HEARTBEAT PRE {:#?}", rx.len());
+                println!("sending heartbeat");
                 send_heartbeat(&mut tx).await;
-                // println!("HEARTBEAT POST {:#?}", rx.len());
             }
         });
-        println!("AFTER SPAWN");
-        Ok(Response::new(
-            Box::pin(out_stream) as Self::ChannelStream
-        ))
+
+        Ok(Response::new(Box::pin(out_stream) as Self::ChannelStream))
     }
 }
-
-// impl Manager for CommanderServer {
-//     async fn manager(&mut self) {
-//         println!("EchoServer::manager");
-//         let (tx, rx) = mpsc::channel::<Result<Message, Status>>(128);
-//         let mut stream = ReceiverStream::new(rx);
-
-//         self.tx = tx;
-
-//         tokio::spawn(async move {
-//             while let Some(result) = stream.next().await {
-//                 match result {
-//                     Ok(v) => {
-//                         println!("SVC RECV OK {:#?}", timenow());
-
-//                         println!("Message read from rx {:#?}", v);
-
-//                         // sleep(Duration::from_secs(10));
-//                         // send_welcome_message(&mut tx).await;
-//                         // tx
-//                         //     .send(Ok(Message { name: v.name, timestamp: 123, payload: Vec::new() }))
-//                         //     .await
-//                         //     .expect("working rx")
-//                     },
-//                     Err(err) => {
-//                         println!("SVC RECV ERROR {:#?}", timenow());
-
-//                         println!("err? {:#?}", err);
-//                         if let Some(io_err) = match_for_io_error(&err) {
-//                             println!("HERERERERE");
-//                             if io_err.kind() == ErrorKind::BrokenPipe {
-//                             println!("HERERERERE222");
-
-//                                 // here you can handle special case when client
-//                                 // disconnected in unexpected way
-//                                 eprintln!("\tclient disconnected: broken pipe");
-//                                 break;
-//                             }
-//                         }
-
-//                         // match tx.send(Err(err)).await {
-//                         //     Ok(_) => (),
-//                         //     Err(_err) => break, // response was dropped
-//                         // }
-//                     }
-//                 }
-//             }
-//             println!("\tstream ended {:#?}", timenow());
-//         });
-//     }
-// }
 
 async fn send_welcome_message(tx: &mut Sender<Result<Message, Status>>) {
     let _ = tx.send(Ok(Message {
@@ -207,19 +139,6 @@ async fn send_heartbeat(tx: &mut Sender<Result<Message, Status>>) {
         payload: Vec::new(),
     })).await;
 }
-
-// async fn send_welcome_message(tx: Sender<Message>) {
-//     let _ = tx.send(Message {
-//         name: "handshake".to_string(),
-//         timestamp: SystemTime::now()
-//             .duration_since(UNIX_EPOCH)
-//             .unwrap()
-//             .as_millis()
-//             .try_into()
-//             .unwrap(),
-//         payload: Vec::new(),
-//     }).await;
-// }
 
 #[cfg(test)]
 mod server_tests {

@@ -20,7 +20,7 @@ fn timenow() -> u64 {
 }
 
 pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
-  println!("CLI START {:#?}", timenow());
+  println!("agent started at {:#?}", timenow());
 
   let (mut tx, rx) = mpsc::channel(128);
 
@@ -35,12 +35,12 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
     match resp_stream.next().await {
       Some(received) => {
         let received = received.unwrap();
-        println!("Received {:#?}", received);
+        println!("received message {:#?}", received);
 
         let resp = get_response_message(received);
         send_message(&mut tx, resp).await;
 
-        println!("sent {:#?}", timenow());
+        println!("sent message response {:#?}", timenow());
       },
       None => {
         println!("Received None from stream :( at {:#?}", timenow());
@@ -49,12 +49,12 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
     }
   }
 
-  println!("EXIT FROM WHILE LOOP");
+  println!("closing client!");
 }
 
-fn get_response_message(receivedMessage: Message) -> Message {
-  match receivedMessage.name.as_str() {
-    "handshake" => Message { name: "handshake_response".to_string(), timestamp: timenow(), payload: Vec::new() },
+fn get_response_message(received_message: Message) -> Message {
+  match received_message.name.as_str() {
+    "handshake" => build_version_message(),
     _ => Message { name: "err".to_string(), timestamp: timenow(), payload: Vec::new() },
   }
 }
@@ -63,17 +63,8 @@ async fn send_message(str: &mut Sender<Message>, message: Message) {
   let _ = str.send(message).await;
 }
 
-async fn send_version(str: &mut Sender<Message>) {
-  send_message(str, Message{
-    name: "handshake".to_string(),
-    timestamp: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_millis()
-      .try_into()
-      .unwrap(),
-    payload: Vec::new()
-  }).await;
+fn build_version_message() -> Message {
+  Message { name: "handshake_response".to_string(), timestamp: timenow(), payload: Vec::new() }
 }
 
 #[cfg(test)]
@@ -81,9 +72,14 @@ mod client_tests {
   use super::*;
 
   #[tokio::test]
-  async fn test_send_version() {
+  async fn test_send_message() {
     let (mut tx, mut rx) = mpsc::channel(1);
-    send_version(&mut tx).await;
+    let msg = Message{
+      name: "handshake".to_string(),
+      timestamp: timenow(),
+      payload: Vec::new(),
+    };
+    send_message(&mut tx, msg).await;
     let actual = rx.recv().await;
     assert_eq!("handshake".to_string(), actual.unwrap().name);
   }

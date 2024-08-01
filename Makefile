@@ -11,6 +11,10 @@ build-agent:
 .PHONY: build
 build: build-commander build-agent
 
+.PHONY: test-messages
+test-messages:
+	cargo test --package messages
+
 .PHONY: test-commander
 test-commander:
 	cargo test --package commander
@@ -20,7 +24,7 @@ test-agent:
 	cargo test --package agent
 
 .PHONY: test
-test: test-commander test-agent
+test: test-commander test-agent test-messages
 
 .PHONY: clean
 clean:

@@ -2,7 +2,7 @@ pub mod pb {
   tonic::include_proto!("messages");
 }
 
-use std::{thread::sleep, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use tokio::sync::mpsc::{self, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
@@ -10,7 +10,7 @@ use tonic::transport::Channel;
 
 use pb::{commander_client::CommanderClient, Message};
 
-fn timenow() -> u128 {
+fn timenow() -> u64 {
   return SystemTime::now()
   .duration_since(UNIX_EPOCH)
   .unwrap()
@@ -31,41 +31,40 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
     .unwrap();
 
   let mut resp_stream = response.into_inner();
-
-  // while let Some(received) = resp_stream.next().await {
-  //   println!("AAAAAAAAAAAAAAAAAAH");
-  //   let received = received.unwrap();
-  //   println!("received {:#?}", received);
-  //   send_version(&mut tx).await;
-  //   println!("sent {:#?}", timenow());
-  // }
-
   loop {
     match resp_stream.next().await {
       Some(received) => {
-        println!("AAAAAAAAAAAAAAAAAAH");
         let received = received.unwrap();
-        println!("received {:#?}", received);
-        send_version(&mut tx).await;
+        println!("Received {:#?}", received);
+
+        let resp = get_response_message(received);
+        send_message(&mut tx, resp).await;
+
         println!("sent {:#?}", timenow());
       },
       None => {
-        println!("UUUUUUUUUUUUUUUH");
-        println!("sent {:#?}", timenow());
+        println!("Received None from stream :( at {:#?}", timenow());
+        break;
       }
     }
   }
 
   println!("EXIT FROM WHILE LOOP");
+}
 
-  // FIXME: sleep blocks the process and allows commander to have time processing the message,
-  // without this everything crashes. We have to find a way to keep the agent running and keep
-  // the connection alive!
-  // sleep(Duration::from_secs(5))
+fn get_response_message(receivedMessage: Message) -> Message {
+  match receivedMessage.name.as_str() {
+    "handshake" => Message { name: "handshake_response".to_string(), timestamp: timenow(), payload: Vec::new() },
+    _ => Message { name: "err".to_string(), timestamp: timenow(), payload: Vec::new() },
+  }
+}
+
+async fn send_message(str: &mut Sender<Message>, message: Message) {
+  let _ = str.send(message).await;
 }
 
 async fn send_version(str: &mut Sender<Message>) {
- let _ =  str.send(Message{
+  send_message(str, Message{
     name: "handshake".to_string(),
     timestamp: SystemTime::now()
       .duration_since(UNIX_EPOCH)
@@ -77,28 +76,27 @@ async fn send_version(str: &mut Sender<Message>) {
   }).await;
 }
 
-// async fn send_version_2(str: &mut Sender<Message>) {
-//   let _ =  str.send(Message{
-//      name: "handshake-2".to_string(),
-//      timestamp: SystemTime::now()
-//        .duration_since(UNIX_EPOCH)
-//        .unwrap()
-//        .as_millis()
-//        .try_into()
-//        .unwrap(),
-//      payload: Vec::new()
-//    }).await;
-//  }
-
 #[cfg(test)]
 mod client_tests {
-    use super::*;
+  use super::*;
 
-    #[tokio::test]
-    async fn test_send_version() {
-        let (mut tx, mut rx) = mpsc::channel(1);
-        send_version(&mut tx).await;
-        let actual = rx.recv().await;
-        assert_eq!("handshake".to_string(), actual.unwrap().name);
-    }
+  #[tokio::test]
+  async fn test_send_version() {
+    let (mut tx, mut rx) = mpsc::channel(1);
+    send_version(&mut tx).await;
+    let actual = rx.recv().await;
+    assert_eq!("handshake".to_string(), actual.unwrap().name);
+  }
+
+  #[test]
+  fn test_get_response_message() {
+    let msg = Message{
+      name: "handshake".to_string(),
+      timestamp: timenow(),
+      payload: Vec::new(),
+    };
+
+    let recv: Message = get_response_message(msg);
+    assert_eq!("handshake_response", recv.name)
+  }
 }

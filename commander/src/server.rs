@@ -81,12 +81,10 @@ impl pb::commander_server::Commander for CommanderServer {
         println!("BEFORE SPAWN");
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
+                println!("received some result");
                 match result {
                     Ok(v) => {
-                        println!("SVC RECV OK {:#?}", timenow());
-
-                        println!("Message read from rx {:#?}", v);
-
+                        println!("MESSAGE READ {:#?}: {:#?}", timenow(), v);
                         // sleep(Duration::from_secs(10));
                         // send_welcome_message(&mut tx).await;
                         // tx
@@ -95,14 +93,9 @@ impl pb::commander_server::Commander for CommanderServer {
                         //     .expect("working rx")
                     },
                     Err(err) => {
-                        println!("SVC RECV ERROR {:#?}", timenow());
-
-                        println!("err? {:#?}", err);
+                        println!("Received error {:#?}: {:#?}", timenow(), err);
                         if let Some(io_err) = match_for_io_error(&err) {
-                            println!("HERERERERE");
                             if io_err.kind() == ErrorKind::BrokenPipe {
-                            println!("HERERERERE222");
-
                                 // here you can handle special case when client
                                 // disconnected in unexpected way
                                 eprintln!("\tclient disconnected: broken pipe");
@@ -116,21 +109,22 @@ impl pb::commander_server::Commander for CommanderServer {
                         // }
                     }
                 }
-
-                println!("BEFORE LOOP");
-                loop {
-                    sleep(Duration::from_secs(5));
-
-                    println!("BEFORE HEARTBEAT");
-                    // println!("HEARTBEAT PRE {:#?}", rx.len());
-                    send_heartbeat(&mut tx).await;
-                    // println!("HEARTBEAT POST {:#?}", rx.len());
-                }
             }
-            println!("\tstream ended {:#?}", timenow());
+            println!("\tread stream ended {:#?}", timenow());
+        });
+
+        tokio::spawn(async move {
+            println!("BEFORE LOOP");
+            loop {
+                sleep(Duration::from_secs(5));
+
+                println!("BEFORE HEARTBEAT");
+                // println!("HEARTBEAT PRE {:#?}", rx.len());
+                send_heartbeat(&mut tx).await;
+                // println!("HEARTBEAT POST {:#?}", rx.len());
+            }
         });
         println!("AFTER SPAWN");
-
         Ok(Response::new(
             Box::pin(out_stream) as Self::ChannelStream
         ))

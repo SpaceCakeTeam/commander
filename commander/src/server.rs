@@ -1,11 +1,7 @@
-pub mod pb {
-    tonic::include_proto!("messages");
-}
+use messages::{pb::{commander_server::Commander, Message}, send2client, timenow};
+use tokio::sync::mpsc;
 
-use pb::Message;
-use tokio::sync::mpsc::{self, Sender};
-
-use std::{error::Error, io::ErrorKind, pin::Pin, thread::sleep, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{error::Error, io::ErrorKind, pin::Pin, thread::sleep, time::Duration};
 
 use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
@@ -15,14 +11,7 @@ type ResponseStream = Pin<Box<dyn Stream<Item = Result<Message, Status>> + Send>
 type ChannelResult<T> = Result<Response<T>, Status>;
 
 #[derive(Debug)]
-pub struct CommanderServer {
-    // tx: Sender<Result<Message, Status>>,
-}
-
-// trait Manager {
-//     async fn manager(&mut self);
-// }
-
+pub struct CommanderServer {}
 
 fn match_for_io_error(err_status: &Status) -> Option<&std::io::Error> {
     let mut err: &(dyn Error + 'static) = err_status;
@@ -47,17 +36,8 @@ fn match_for_io_error(err_status: &Status) -> Option<&std::io::Error> {
     }
 }
 
-fn timenow() -> u128 {
-    return SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .unwrap()
-    .as_millis()
-    .try_into()
-    .unwrap()
-}
-
 #[tonic::async_trait]
-impl pb::commander_server::Commander for CommanderServer {
+impl Commander for CommanderServer {
 
     type ChannelStream = ResponseStream;
 
@@ -70,23 +50,16 @@ impl pb::commander_server::Commander for CommanderServer {
         let mut in_stream: Streaming<Message> = req.into_inner();
         let (mut tx, rx) = mpsc::channel(1);
 
-        // let mut tx1 = tx.clone();
         let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
 
         println!("sending welcome message");
-        send_welcome_message(&mut tx).await;
+        send2client(&mut tx, build_welcome_message()).await;
 
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
                 match result {
                     Ok(v) => {
                         println!("received message from client {:#?}: {:#?}", timenow(), v);
-                        // sleep(Duration::from_secs(10));
-                        // send_welcome_message(&mut tx).await;
-                        // tx
-                        //     .send(Ok(Message { name: v.name, timestamp: 123, payload: Vec::new() }))
-                        //     .await
-                        //     .expect("working rx")
                     },
                     Err(err) => {
                         println!("received error from client {:#?}: {:#?}", timenow(), err);
@@ -106,7 +79,8 @@ impl pb::commander_server::Commander for CommanderServer {
             loop {
                 sleep(Duration::from_secs(5));
                 println!("sending heartbeat");
-                send_heartbeat(&mut tx).await;
+                send2client(&mut tx, build_heartbeat_message()).await
+                // send_heartbeat(&mut tx).await;
             }
         });
 
@@ -114,41 +88,26 @@ impl pb::commander_server::Commander for CommanderServer {
     }
 }
 
-async fn send_welcome_message(tx: &mut Sender<Result<Message, Status>>) {
-    let _ = tx.send(Ok(Message {
+fn build_welcome_message() -> Message {
+    Message {
         name: "handshake".to_string(),
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-            .try_into()
-            .unwrap(),
+        timestamp: timenow(),
         payload: Vec::new(),
-    })).await;
-}
-
-async fn send_heartbeat(tx: &mut Sender<Result<Message, Status>>) {
-    let _ = tx.send(Ok(Message {
-        name: "heartbeat".to_string(),
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-            .try_into()
-            .unwrap(),
-        payload: Vec::new(),
-    })).await;
-}
-
-#[cfg(test)]
-mod server_tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_welcome_message() {
-        let (mut tx, mut rx) = mpsc::channel(1);
-        send_welcome_message(&mut tx).await;
-        let actual = rx.recv().await;
-        assert_eq!("handshake".to_string(), actual.unwrap().unwrap().name);
     }
 }
+fn build_heartbeat_message() -> Message {
+    Message {
+        name: "heartbeat".to_string(),
+        timestamp: timenow(),
+        payload: Vec::new(),
+    }
+}
+
+// #[cfg(test)]
+// mod server_tests {
+//     use super::*;
+
+//     #[tokio::test]
+//     // async fn test_todo() {
+//     // }
+// }

@@ -1,6 +1,6 @@
 mod client;
 
-use client::pb::commander_client::CommanderClient;
+use messages::pb::commander_client::CommanderClient;
 use client::agent_stream_manager;
 
 #[tokio::main]

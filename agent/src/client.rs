@@ -1,23 +1,8 @@
-pub mod pb {
-  tonic::include_proto!("messages");
-}
-
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use tokio::sync::mpsc::{self, Sender};
+use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
 
-use pb::{commander_client::CommanderClient, Message};
-
-fn timenow() -> u64 {
-  return SystemTime::now()
-  .duration_since(UNIX_EPOCH)
-  .unwrap()
-  .as_millis()
-  .try_into()
-  .unwrap()
-}
+use messages::{pb::{commander_client::CommanderClient, Message}, timenow, send2server};
 
 pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
   println!("agent started at {:#?}", timenow());
@@ -38,7 +23,7 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
         println!("received message {:#?}", received);
 
         let resp = get_response_message(received);
-        send_message(&mut tx, resp).await;
+        send2server(&mut tx, resp).await;
 
         println!("sent message response {:#?}", timenow());
       },
@@ -59,9 +44,6 @@ fn get_response_message(received_message: Message) -> Message {
   }
 }
 
-async fn send_message(str: &mut Sender<Message>, message: Message) {
-  let _ = str.send(message).await;
-}
 
 fn build_version_message() -> Message {
   Message { name: "handshake_response".to_string(), timestamp: timenow(), payload: Vec::new() }
@@ -70,19 +52,6 @@ fn build_version_message() -> Message {
 #[cfg(test)]
 mod client_tests {
   use super::*;
-
-  #[tokio::test]
-  async fn test_send_message() {
-    let (mut tx, mut rx) = mpsc::channel(1);
-    let msg = Message{
-      name: "handshake".to_string(),
-      timestamp: timenow(),
-      payload: Vec::new(),
-    };
-    send_message(&mut tx, msg).await;
-    let actual = rx.recv().await;
-    assert_eq!("handshake".to_string(), actual.unwrap().name);
-  }
 
   #[test]
   fn test_get_response_message() {

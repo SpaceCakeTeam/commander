@@ -22,11 +22,11 @@ name = "agent"
 version = "0.1.0"
 dependencies = [
  "h2 0.4.5",
+ "messages",
  "prost",
  "tokio",
  "tokio-stream",
  "tonic",
- "tonic-build",
 ]
 
 [[package]]
@@ -190,11 +190,11 @@ name = "commander"
 version = "0.1.0"
 dependencies = [
  "h2 0.4.5",
+ "messages",
  "prost",
  "tokio",
  "tokio-stream",
  "tonic",
- "tonic-build",
 ]
 
 [[package]]
@@ -500,6 +500,18 @@ name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
+
+[[package]]
+name = "messages"
+version = "0.1.0"
+dependencies = [
+ "h2 0.4.5",
+ "prost",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
 
 [[package]]
 name = "mime"

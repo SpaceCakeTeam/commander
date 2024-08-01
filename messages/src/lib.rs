@@ -2,6 +2,8 @@ pub mod pb {
   tonic::include_proto!("messages");
 }
 
+mod generic_payload;
+
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::Sender;
 use tonic::Status;
@@ -29,8 +31,10 @@ mod messages_tests {
   use tokio::sync::mpsc;
   use super::*;
 
+  
   #[tokio::test]
   async fn test_send2server() {
+
     let (mut tx, mut rx) = mpsc::channel(1);
     let msg = Message{
       name: "handshake".to_string(),

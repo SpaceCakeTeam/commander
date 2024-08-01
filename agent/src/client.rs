@@ -49,7 +49,7 @@ fn get_response_message(received_message: Message) -> Option<Message> {
 
 
 fn build_version_message() -> Message {
-  Message { name: "handshake_response".to_string(), timestamp: timenow(), payload: Vec::new() }
+  Message { name: "handshake_response".to_string(), timestamp: timenow(), payload:  Some("version 123"), }
 }
 
 #[cfg(test)]
@@ -61,10 +61,11 @@ mod client_tests {
     let msg = Message{
       name: "handshake".to_string(),
       timestamp: timenow(),
-      payload: Vec::new(),
+      payload: Some("ciao"),
     };
 
     let recv = get_response_message(msg);
-    assert_eq!("handshake_response", recv.unwrap().name)
+    assert_eq!("handshake_response", recv.unwrap().name);
+    assert_eq!("ciao", recv.unwrap().payload.unwrap());
   }
 }

@@ -4,6 +4,7 @@ pub mod pb {
 
 pub mod payload_serializer;
 pub mod error;
+pub mod messages;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::Sender;

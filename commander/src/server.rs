@@ -1,4 +1,4 @@
-use messages::{pb::{commander_server::Commander, Message}, send2client, timenow};
+use messages::{messages::HANDSHAKE_COMMAND, pb::{commander_server::Commander, Message}, send2client, timenow};
 use tokio::sync::mpsc;
 
 use std::{error::Error, io::ErrorKind, pin::Pin, thread::sleep, time::Duration};
@@ -90,7 +90,7 @@ impl Commander for CommanderServer {
 
 fn build_welcome_message() -> Message {
     Message {
-        name: "handshake".to_string(),
+        name: HANDSHAKE_COMMAND.to_string(),
         timestamp: timenow(),
         payload: Vec::new(),
     }

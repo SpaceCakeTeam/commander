@@ -2,7 +2,9 @@ use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
 
-use messages::{pb::{commander_client::CommanderClient, Message}, timenow, send2server};
+use messages::{messages::{Version, HANDSHAKE_COMMAND, VERSION_NAME_MESSAGE}, payload_serializer::serialize, pb::{commander_client::CommanderClient, Message}, send2server, timenow};
+
+const VERSION: &str = "1";
 
 pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
     println!("agent started at {:#?}", timenow());
@@ -42,13 +44,19 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
 
 fn get_response_message(received_message: Message) -> Option<Message> {
     match received_message.name.as_str() {
-        "handshake" => Some(build_version_message()),
+        HANDSHAKE_COMMAND => Some(build_version_message()),
         _ => None,
     }
 }
 
 fn build_version_message() -> Message {
-    Message { name: "handshake_response".to_string(), timestamp: timenow(), payload: b"\"version 123\"".to_vec(), }
+    let version = Version{ name: VERSION.to_string() };
+    let version_payload = serialize(&version).unwrap();
+    Message {
+        name: VERSION_NAME_MESSAGE.to_string(),
+        timestamp: timenow(),
+        payload: version_payload,
+    }
 }
 
 #[cfg(test)]
@@ -60,14 +68,14 @@ mod client_tests {
     #[test]
     fn test_get_response_message() {
         let msg = Message{
-            name: "handshake".to_string(),
+            name: HANDSHAKE_COMMAND.to_string(),
             timestamp: timenow(),
             payload: serialize(&"ciao".to_string()).unwrap(),
         };
 
         let recv = get_response_message(msg);
         let message = recv.unwrap();
-        assert_eq!("handshake_response", message.name);
-        assert_eq!("version 123", deserialize::<String>(&message.payload).unwrap());
+        assert_eq!(VERSION_NAME_MESSAGE, message.name);
+        assert_eq!(VERSION, deserialize::<Version>(&message.payload).unwrap().name);
     }
 }

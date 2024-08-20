@@ -2,13 +2,14 @@ pub mod pb {
   tonic::include_proto!("messages");
 }
 
-mod generic_payload;
+pub mod payload_serializer;
+pub mod error;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::Sender;
 use tonic::Status;
 use pb::Message;
-  
+
 pub fn timenow() -> u64 {
   SystemTime::now()
     .duration_since(UNIX_EPOCH)
@@ -31,7 +32,7 @@ mod messages_tests {
   use tokio::sync::mpsc;
   use super::*;
 
-  
+
   #[tokio::test]
   async fn test_send2server() {
 
@@ -41,7 +42,7 @@ mod messages_tests {
       timestamp: timenow(),
       payload: Vec::new(),
     };
-    
+
     send2server(&mut tx, msg).await;
     let actual = rx.recv().await;
     assert_eq!("handshake".to_string(), actual.unwrap().name);

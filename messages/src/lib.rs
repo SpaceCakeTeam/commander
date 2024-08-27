@@ -4,7 +4,7 @@ pub mod pb {
 
 pub mod payload_serializer;
 pub mod error;
-pub mod messages;
+pub mod definitions;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{de::DeserializeOwned, Serialize};

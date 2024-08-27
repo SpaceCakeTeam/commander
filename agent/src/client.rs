@@ -4,7 +4,7 @@ use tonic::transport::Channel;
 
 use messages::{
     build_message_or_print_error, 
-    messages::{Version, HANDSHAKE_COMMAND, VERSION_NAME_MESSAGE}, 
+    definitions::{Version, HANDSHAKE_COMMAND, VERSION_NAME_MESSAGE},
     pb::{commander_client::CommanderClient, Message},
     send2server,
     timenow,

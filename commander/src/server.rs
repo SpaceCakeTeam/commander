@@ -1,4 +1,10 @@
-use messages::{build_message_or_print_error, messages::{HANDSHAKE_COMMAND, HEARTBEAT_EVENT}, pb::{commander_server::Commander, Message}, send2client, timenow};
+use messages::{
+    build_message_or_print_error, 
+    definitions::{HANDSHAKE_COMMAND, HEARTBEAT_EVENT}, 
+    pb::{commander_server::Commander, Message},
+    send2client,
+    timenow,
+};
 use tokio::sync::mpsc;
 
 use std::{error::Error, io::ErrorKind, pin::Pin, thread::sleep, time::Duration};

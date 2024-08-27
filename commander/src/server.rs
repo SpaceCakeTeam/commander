@@ -1,4 +1,4 @@
-use messages::{messages::HANDSHAKE_COMMAND, pb::{commander_server::Commander, Message}, send2client, timenow};
+use messages::{build_message_or_print_error, messages::{HANDSHAKE_COMMAND, HEARTBEAT_EVENT}, pb::{commander_server::Commander, Message}, send2client, timenow};
 use tokio::sync::mpsc;
 
 use std::{error::Error, io::ErrorKind, pin::Pin, thread::sleep, time::Duration};
@@ -53,7 +53,7 @@ impl Commander for CommanderServer {
         let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
 
         println!("sending welcome message");
-        send2client(&mut tx, build_welcome_message()).await;
+        send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
 
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
@@ -79,35 +79,10 @@ impl Commander for CommanderServer {
             loop {
                 sleep(Duration::from_secs(5));
                 println!("sending heartbeat");
-                send2client(&mut tx, build_heartbeat_message()).await
-                // send_heartbeat(&mut tx).await;
+                send2client(&mut tx, build_message_or_print_error(HEARTBEAT_EVENT, b"")).await
             }
         });
 
         Ok(Response::new(Box::pin(out_stream) as Self::ChannelStream))
     }
 }
-
-fn build_welcome_message() -> Message {
-    Message {
-        name: HANDSHAKE_COMMAND.to_string(),
-        timestamp: timenow(),
-        payload: Vec::new(),
-    }
-}
-fn build_heartbeat_message() -> Message {
-    Message {
-        name: "heartbeat".to_string(),
-        timestamp: timenow(),
-        payload: Vec::new(),
-    }
-}
-
-// #[cfg(test)]
-// mod server_tests {
-//     use super::*;
-
-//     #[tokio::test]
-//     // async fn test_todo() {
-//     // }
-// }

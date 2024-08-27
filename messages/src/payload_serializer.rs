@@ -3,22 +3,19 @@ use serde_json;
 use super::error::Error;
 
 pub fn serialize<T: Serialize>(payload: &T) -> Result<Vec<u8>, Error> {
-    let result = serde_json::to_vec(payload);
-    match result {
-        Ok(res) => Ok(res),
-        Err(e) => Err(Error { message: e.to_string() }),
-    }
+    let serialized = serde_json::to_vec(payload)
+        .map_err(|e| Error { message: e.to_string() })?;
+    Ok(serialized)
 }
 
 pub fn deserialize<T>(payload: &Vec<u8>) -> Result<T, Error> where T: DeserializeOwned {
     if payload.is_empty() {
         return Err(Error { message: "empty payload".to_string() });
     }
-    let result = serde_json::from_slice(payload);
-    match result {
-        Ok(res) => Ok(res),
-        Err(e) => Err(Error { message: e.to_string() }),
-    }
+
+    let deserialized = serde_json::from_slice(payload)
+        .map_err(|e| Error { message: e.to_string() })?;
+    Ok(deserialized)
 }
 
 #[cfg(test)]

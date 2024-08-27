@@ -2,7 +2,13 @@ use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
 
-use messages::{messages::{Version, HANDSHAKE_COMMAND, VERSION_NAME_MESSAGE}, payload_serializer::serialize, pb::{commander_client::CommanderClient, Message}, send2server, timenow};
+use messages::{
+    build_message_or_print_error, 
+    messages::{Version, HANDSHAKE_COMMAND, VERSION_NAME_MESSAGE}, 
+    pb::{commander_client::CommanderClient, Message},
+    send2server,
+    timenow,
+};
 
 const VERSION: &str = "1";
 
@@ -44,18 +50,11 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
 
 fn get_response_message(received_message: Message) -> Option<Message> {
     match received_message.name.as_str() {
-        HANDSHAKE_COMMAND => Some(build_version_message()),
+        HANDSHAKE_COMMAND => Some(build_message_or_print_error(
+            VERSION_NAME_MESSAGE, 
+            &Version{ name: VERSION.to_string() },
+        )),
         _ => None,
-    }
-}
-
-fn build_version_message() -> Message {
-    let version = Version{ name: VERSION.to_string() };
-    let version_payload = serialize(&version).unwrap();
-    Message {
-        name: VERSION_NAME_MESSAGE.to_string(),
-        timestamp: timenow(),
-        payload: version_payload,
     }
 }
 

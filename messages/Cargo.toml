@@ -1,12 +1,17 @@
 [package]
-name = "commander"
+name = "messages"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 tonic = "0.11"
 prost = "0.12"
+prost-types = "0.13.1"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 tokio-stream = "0.1.15"
 h2 = "0.4.5"
-messages = { path = "../messages" }
+serde_json = "1.0.121"
+serde = { version = "1.0.204", features = ["derive"] }
+
+[build-dependencies]
+tonic-build = "0.11.0"

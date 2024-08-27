@@ -1,18 +1,20 @@
-pub mod pb {
-    tonic::include_proto!("messages");
-}
-
-use pb::Message;
+use messages::{
+    build_message_or_print_error, 
+    definitions::{HANDSHAKE_COMMAND, HEARTBEAT_EVENT}, 
+    pb::{commander_server::Commander, Message},
+    send2client,
+    timenow,
+};
 use tokio::sync::mpsc;
 
-use std::{error::Error, io::ErrorKind, pin::Pin};
+use std::{error::Error, io::ErrorKind, pin::Pin, thread::sleep, time::Duration};
 
 use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
 
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<Message, Status>> + Send>>;
 
-type EchoResult<T> = Result<Response<T>, Status>;
+type ChannelResult<T> = Result<Response<T>, Status>;
 
 #[derive(Debug)]
 pub struct CommanderServer {}
@@ -41,55 +43,52 @@ fn match_for_io_error(err_status: &Status) -> Option<&std::io::Error> {
 }
 
 #[tonic::async_trait]
-impl pb::commander_server::Commander for CommanderServer {
+impl Commander for CommanderServer {
 
     type ChannelStream = ResponseStream;
 
     async fn channel(
         &self,
         req: Request<Streaming<Message>>,
-    ) -> EchoResult<Self::ChannelStream> {
-        println!("EchoServer::bidirectional_streaming_echo");
+    ) -> ChannelResult<Self::ChannelStream> {
+        println!("|{}| new client connected", timenow());
 
-        let mut in_stream = req.into_inner();
-        let (tx, rx) = mpsc::channel(128);
+        let mut in_stream: Streaming<Message> = req.into_inner();
+        let (mut tx, rx) = mpsc::channel(1);
 
-        // this spawn here is required if you want to handle connection error.
-        // If we just map `in_stream` and write it back as `out_stream` the `out_stream`
-        // will be dropped when connection error occurs and error will never be propagated
-        // to mapped version of `in_stream`.
+        let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
+
+        println!("|{}| sending welcome message", timenow());
+        send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
+
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
                 match result {
-                    Ok(v) => tx
-                        .send(Ok(Message { name: v.name, timestamp: "ciao".to_string(), payload: Vec::new() }))
-                        .await
-                        .expect("working rx"),
+                    Ok(v) => {
+                        println!("|{time}| received message {name}: {:#?}", std::str::from_utf8(&v.payload).ok().unwrap(), name=&v.name, time=&v.timestamp);
+                    },
                     Err(err) => {
+                        println!("|{time}| received error from client: {:#?}", err, time=timenow());
                         if let Some(io_err) = match_for_io_error(&err) {
                             if io_err.kind() == ErrorKind::BrokenPipe {
-                                // here you can handle special case when client
-                                // disconnected in unexpected way
-                                eprintln!("\tclient disconnected: broken pipe");
+                                eprintln!("\t|{time}| client disconnected: broken pipe", time=timenow());
                                 break;
                             }
-                        }
-
-                        match tx.send(Err(err)).await {
-                            Ok(_) => (),
-                            Err(_err) => break, // response was dropped
                         }
                     }
                 }
             }
-            println!("\tstream ended");
+            println!("\t|{}| client stream ended", timenow());
         });
 
-        // echo just write the same data that was received
-        let out_stream = ReceiverStream::new(rx);
+        tokio::spawn(async move {
+            loop {
+                sleep(Duration::from_secs(5));
+                println!("|{}| sending heartbeat", timenow());
+                send2client(&mut tx, build_message_or_print_error(HEARTBEAT_EVENT, b"")).await
+            }
+        });
 
-        Ok(Response::new(
-            Box::pin(out_stream) as Self::ChannelStream
-        ))
+        Ok(Response::new(Box::pin(out_stream) as Self::ChannelStream))
     }
 }

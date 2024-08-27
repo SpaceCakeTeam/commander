@@ -13,7 +13,7 @@ use messages::{
 const VERSION: &str = "1";
 
 pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
-    println!("agent started at {:#?}", timenow());
+    println!("|{}| agent started", timenow());
 
     let (mut tx, rx) = mpsc::channel(128);
 
@@ -28,7 +28,7 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
         match resp_stream.next().await {
             Some(received) => {
                 let received = received.unwrap();
-                println!("received message {:#?}", received);
+                println!("|{time}| received message {name}: {:#?}", std::str::from_utf8(&received.payload).ok().unwrap(), name=&received.name, time=&received.timestamp);
 
                 let resp = get_response_message(received);
                 match resp {
@@ -36,16 +36,16 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
                     _ => (),
                 }
 
-                println!("processed message {:#?}", timenow());
+                println!("|{}| processed message", timenow());
             },
             None => {
-                println!("Received None from stream :( at {:#?}", timenow());
+                println!("|{}| Received None from stream :(", timenow());
                 break;
             }
         }
     }
 
-    println!("closing client!");
+    println!("|{}| closing client!", timenow());
 }
 
 fn get_response_message(received_message: Message) -> Option<Message> {

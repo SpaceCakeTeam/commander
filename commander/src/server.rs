@@ -51,40 +51,40 @@ impl Commander for CommanderServer {
         &self,
         req: Request<Streaming<Message>>,
     ) -> ChannelResult<Self::ChannelStream> {
-        println!("new client connected");
+        println!("|{}| new client connected", timenow());
 
         let mut in_stream: Streaming<Message> = req.into_inner();
         let (mut tx, rx) = mpsc::channel(1);
 
         let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
 
-        println!("sending welcome message");
+        println!("|{}| sending welcome message", timenow());
         send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
 
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
                 match result {
                     Ok(v) => {
-                        println!("received message from client {:#?}: {:#?}", timenow(), v);
+                        println!("|{time}| received message {name}: {:#?}", std::str::from_utf8(&v.payload).ok().unwrap(), name=&v.name, time=&v.timestamp);
                     },
                     Err(err) => {
-                        println!("received error from client {:#?}: {:#?}", timenow(), err);
+                        println!("|{time}| received error from client: {:#?}", err, time=timenow());
                         if let Some(io_err) = match_for_io_error(&err) {
                             if io_err.kind() == ErrorKind::BrokenPipe {
-                                eprintln!("\tclient disconnected: broken pipe");
+                                eprintln!("\t|{time}| client disconnected: broken pipe", time=timenow());
                                 break;
                             }
                         }
                     }
                 }
             }
-            println!("\tclient stream ended {:#?}", timenow());
+            println!("\t|{}| client stream ended", timenow());
         });
 
         tokio::spawn(async move {
             loop {
                 sleep(Duration::from_secs(5));
-                println!("sending heartbeat");
+                println!("|{}| sending heartbeat", timenow());
                 send2client(&mut tx, build_message_or_print_error(HEARTBEAT_EVENT, b"")).await
             }
         });

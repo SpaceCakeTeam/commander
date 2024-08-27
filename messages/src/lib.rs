@@ -49,7 +49,7 @@ impl Message {
 pub fn build_message_or_print_error<T: Serialize>(name: &str, payload: &T) -> Message {
   Message::new(name, payload)
       .map_err(|e| 
-          println!("failed message {:#?} serialization {:#?}", name, e.message)
+          println!("|{}| failed message {} serialization {:#?}", timenow(), name, e.message)
       )
       .ok()
       .unwrap()

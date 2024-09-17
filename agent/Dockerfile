@@ -2,10 +2,9 @@ FROM rust:1-alpine as builder
 
 ENV USER root
 
-RUN apk add libc-dev
+RUN apk add libc-dev protoc
 
-
-WORKDIR build
+WORKDIR /build
 
 COPY . .
 

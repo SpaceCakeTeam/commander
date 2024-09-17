@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commander
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: commander
+  template:
+    metadata:
+      labels:
+        app: commander
+    spec:
+      containers:
+        - name: commander
+          imagePullPolicy: IfNotPresent
+          image: commander
+          ports:
+            - containerPort: 50051
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: commander
+spec:
+  selector:
+    app: commander
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 50051
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent
+  template:
+    metadata:
+      labels:
+        app: agent
+    spec:
+      containers:
+        - name: agent
+          imagePullPolicy: IfNotPresent
+          image: commander-agent
+          env:
+            - name: COMMANDER_URL
+              value: "http://commander"
+            - name: RUST_BACKTRACE
+              value: "full"

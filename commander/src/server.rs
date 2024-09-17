@@ -1,6 +1,6 @@
 use messages::{
-    build_message_or_print_error, 
-    definitions::{HANDSHAKE_COMMAND, HEARTBEAT_EVENT}, 
+    build_message_or_print_error,
+    definitions::{HANDSHAKE_COMMAND, HEARTBEAT_EVENT, K8S_GET_VERSION_COMMAND},
     pb::{commander_server::Commander, Message},
     send2client,
     timenow,
@@ -60,6 +60,7 @@ impl Commander for CommanderServer {
 
         println!("|{}| sending welcome message", timenow());
         send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
+        send2client(&mut tx, build_message_or_print_error(K8S_GET_VERSION_COMMAND, b"")).await;
 
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {

@@ -16,7 +16,7 @@ pub struct KubernetesVersion {
   pub platform: String,
 }
 
-async fn get_version() -> Result<KubernetesVersion, Error> {
+pub async fn get_version() -> Result<KubernetesVersion, Error> {
   let client = Client::try_default().await
     .map_err(|e| Error { message: e.to_string() })?;
   client.apiserver_version().await

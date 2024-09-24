@@ -37,6 +37,10 @@ clean:
 kind:
 	kind create cluster --name ${KIND_CLUSTER_NAME}
 
+.PHONY: kind-clean
+kind-clean:
+	kind delete cluster --name ${KIND_CLUSTER_NAME}
+
 .PHONY: docker-build-agent
 docker-build-agent:
 	docker build -t ${AGENT_IMAGE} . -f ./agent/Dockerfile

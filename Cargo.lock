@@ -22,6 +22,7 @@ name = "agent"
 version = "0.1.0"
 dependencies = [
  "h2 0.4.5",
+ "kubernetes-client",
  "messages",
  "prost 0.12.6",
  "tokio",

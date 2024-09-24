@@ -10,3 +10,4 @@ tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 tokio-stream = "0.1.15"
 h2 = "0.4.5"
 messages = { path = "../messages" }
+kubernetes-client = { path = "../kubernetes-client" }

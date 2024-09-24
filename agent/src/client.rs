@@ -10,6 +10,8 @@ use messages::{
     timenow,
 };
 
+use super::k8scommands::retrieve_k8s_version_and_build_message;
+
 const VERSION: &str = "1";
 
 pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
@@ -30,7 +32,7 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
                 let received = received.unwrap();
                 println!("|{time}| received message {name}: {:#?}", std::str::from_utf8(&received.payload).ok().unwrap(), name=&received.name, time=&received.timestamp);
 
-                let resp = get_response_message(received);
+                let resp = get_response_message(received).await;
                 match resp {
                     Some(message_to_send) => send2server(&mut tx, message_to_send).await,
                     _ => (),
@@ -48,20 +50,15 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
     println!("|{}| closing client!", timenow());
 }
 
-fn get_response_message(received_message: Message) -> Option<Message> {
+async fn get_response_message(received_message: Message) -> Option<Message> {
     match received_message.name.as_str() {
         HANDSHAKE_COMMAND => Some(build_message_or_print_error(
             VERSION_NAME_MESSAGE, 
             &Version{ name: VERSION.to_string() },
         )),
-        K8S_GET_VERSION_COMMAND => retrieve_k8s_version_and_build_message(),
+        K8S_GET_VERSION_COMMAND => retrieve_k8s_version_and_build_message().await,
         _ => None,
     }
-}
-
-fn retrieve_k8s_version_and_build_message()->Option<Message> {
-    println!("received k8s version request");
-    Some(build_message_or_print_error("MY NAME FAKE FOR TESTING", &Version{name:"fake".to_string()}))
 }
 
 #[cfg(test)]
@@ -70,15 +67,15 @@ mod client_tests {
 
     use super::*;
 
-    #[test]
-    fn test_get_response_message() {
+    #[tokio::test]
+    async fn test_get_response_message() {
         let msg = Message{
             name: HANDSHAKE_COMMAND.to_string(),
             timestamp: timenow(),
             payload: serialize(&"ciao".to_string()).unwrap(),
         };
 
-        let recv = get_response_message(msg);
+        let recv = get_response_message(msg).await;
         let message = recv.unwrap();
         assert_eq!(VERSION_NAME_MESSAGE, message.name);
         assert_eq!(VERSION, deserialize::<Version>(&message.payload).unwrap().name);

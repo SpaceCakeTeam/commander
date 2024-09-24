@@ -56,7 +56,7 @@ async fn get_response_message(received_message: Message) -> Option<Message> {
             VERSION_NAME_MESSAGE, 
             &Version{ name: VERSION.to_string() },
         )),
-        K8S_GET_VERSION_COMMAND => retrieve_k8s_version_and_build_message().await,
+        K8S_GET_VERSION_COMMAND => Some(retrieve_k8s_version_and_build_message().await),
         _ => None,
     }
 }

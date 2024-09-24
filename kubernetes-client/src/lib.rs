@@ -33,3 +33,27 @@ pub async fn get_version() -> Result<KubernetesVersion, Error> {
     })
     .map_err(|e| Error { message: e.to_string() })
 }
+
+#[cfg(test)]
+mod kube_tests {
+  use super::*;
+
+  #[test]
+  fn test_kubernetes_version_struct_serialization() {
+    let version = KubernetesVersion {
+      major: "1".to_string(),
+      minor: "20".to_string(),
+      git_version: "v1.20.0".to_string(),
+      git_commit: "af46c47ce925f4c4d18f44f06ed18c47d171cc1b".to_string(),
+      git_tree_state: "clean".to_string(),
+      build_date: "2020-12-08T17:51:19Z".to_string(),
+      go_version: "go1.15.5".to_string(),
+      compiler: "gc".to_string(),
+      platform: "linux/amd64".to_string(),
+    };
+
+    let serialized = serde_json::to_string(&version).unwrap();
+
+    assert_eq!(serialized, "{\"major\":\"1\",\"minor\":\"20\",\"gitVersion\":\"v1.20.0\",\"gitCommit\":\"af46c47ce925f4c4d18f44f06ed18c47d171cc1b\",\"gitTreeState\":\"clean\",\"buildDate\":\"2020-12-08T17:51:19Z\",\"goVersion\":\"go1.15.5\",\"compiler\":\"gc\",\"platform\":\"linux/amd64\"}");
+  }
+}

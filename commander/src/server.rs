@@ -6,10 +6,10 @@ use messages::{
     timenow
 };
 
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::JoinHandle};
 use tokio::sync::mpsc::Sender;
 
-use std::{error::Error, io::ErrorKind, pin::Pin, sync::Arc, thread::sleep, time::Duration};
+use std::{pin::Pin, sync::Arc, thread::sleep, time::Duration};
 
 use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
@@ -20,29 +20,6 @@ type ChannelResult<T> = Result<Response<T>, Status>;
 
 #[derive(Debug)]
 pub struct CommanderServer {}
-
-fn match_for_io_error(err_status: &Status) -> Option<&std::io::Error> {
-    let mut err: &(dyn Error + 'static) = err_status;
-
-    loop {
-        if let Some(io_err) = err.downcast_ref::<std::io::Error>() {
-            return Some(io_err);
-        }
-
-        // h2::Error do not expose std::io::Error with `source()`
-        // https://github.com/hyperium/h2/pull/462
-        if let Some(h2_err) = err.downcast_ref::<h2::Error>() {
-            if let Some(io_err) = h2_err.get_io() {
-                return Some(io_err);
-            }
-        }
-
-        err = match err.source() {
-            Some(err) => err,
-            None => return None,
-        };
-    }
-}
 
 #[tonic::async_trait]
 impl Commander for CommanderServer {
@@ -62,11 +39,11 @@ impl Commander for CommanderServer {
     
         let stream_reference_counter = Arc::new(tx);
 
-        let server_event_manager_stream = Arc::clone(&stream_reference_counter);
-        tokio::spawn(server_manager(in_stream, server_event_manager_stream));
-
         let heartbeat_manager_stream = Arc::clone(&stream_reference_counter);
-        tokio::spawn(heartbeat_sender(heartbeat_manager_stream));
+        let heartbeat_handle = tokio::spawn(heartbeat_sender(heartbeat_manager_stream));
+
+        let server_event_manager_stream = Arc::clone(&stream_reference_counter);
+        tokio::spawn(server_manager(in_stream, server_event_manager_stream, heartbeat_handle));
 
         let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
         Ok(Response::new(Box::pin(out_stream) as Self::ChannelStream))
@@ -83,7 +60,7 @@ async fn heartbeat_sender(tx: Arc<Sender<Result<Message, Status>>>) {
     } 
 }
 
-async fn server_manager(mut in_stream: Streaming<Message>, tx: Arc<Sender<Result<Message, Status>>>) {
+async fn server_manager(mut in_stream: Streaming<Message>, tx: Arc<Sender<Result<Message, Status>>>, join_handle: JoinHandle<()>) {
     while let Some(result) = in_stream.next().await {
         match result {
             Ok(v) => {
@@ -92,12 +69,8 @@ async fn server_manager(mut in_stream: Streaming<Message>, tx: Arc<Sender<Result
             },
             Err(err) => {
                 println!("|{time}| received error from client: {:#?}", err, time=timenow());
-                if let Some(io_err) = match_for_io_error(&err) {
-                    if io_err.kind() == ErrorKind::BrokenPipe {
-                        eprintln!("\t|{time}| client disconnected: broken pipe", time=timenow());
-                        break;
-                    }
-                }
+                join_handle.abort();
+                break;
             }
         }
     }

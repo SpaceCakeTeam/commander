@@ -35,7 +35,7 @@ impl Message {
   pub fn new<T: Serialize>(name: &str, payload: &T) -> Result<Message, Error> {
     let serialized =  serialize(payload)?;
     Ok(Message{
-      name: name.to_string(), 
+      name: name.to_string(),
       timestamp: timenow(),
       payload: serialized,
     })
@@ -48,11 +48,16 @@ impl Message {
 
 pub fn build_message_or_print_error<T: Serialize>(name: &str, payload: &T) -> Message {
   Message::new(name, payload)
-      .map_err(|e| 
+      .map_err(|e|
           println!("|{}| failed message {} serialization {:#?}", timenow(), name, e.message)
       )
       .ok()
       .unwrap()
+}
+
+pub fn uuidv4() -> String {
+  let uuid = uuid::Uuid::new_v4();
+  uuid.to_string()
 }
 
 #[cfg(test)]

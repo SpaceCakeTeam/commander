@@ -2,6 +2,7 @@
 members = [
   "agent",
   "commander",
-  "messages"
+  "kubernetes-client",
+  "messages",
 ]
 resolver = "2"

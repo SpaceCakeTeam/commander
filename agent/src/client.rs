@@ -3,7 +3,7 @@ use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
 
 use messages::{
-    build_message_or_print_error, 
+    build_message_or_print_error,
     definitions::{Version, HANDSHAKE_COMMAND, K8S_GET_VERSION_COMMAND, VERSION_NAME_MESSAGE},
     pb::{commander_client::CommanderClient, Message},
     send2server,
@@ -17,7 +17,7 @@ const VERSION: &str = "1";
 pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
     println!("|{}| agent started", timenow());
 
-    let (mut tx, rx) = mpsc::channel(128);
+    let (mut tx, rx) = mpsc::channel(1);
 
     let ch = ReceiverStream::new(rx);
     let response: tonic::Response<tonic::Streaming<Message>> = client
@@ -53,7 +53,7 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
 async fn get_response_message(received_message: Message) -> Option<Message> {
     match received_message.name.as_str() {
         HANDSHAKE_COMMAND => Some(build_message_or_print_error(
-            VERSION_NAME_MESSAGE, 
+            VERSION_NAME_MESSAGE,
             &Version{ name: VERSION.to_string() },
         )),
         K8S_GET_VERSION_COMMAND => Some(retrieve_k8s_version_and_build_message().await),

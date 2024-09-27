@@ -3,13 +3,14 @@ use messages::{
     definitions::{HANDSHAKE_COMMAND, HEARTBEAT_EVENT, K8S_GET_VERSION_COMMAND, VERSION_NAME_MESSAGE},
     pb::{commander_server::Commander, Message},
     send2client,
-    timenow
+    timenow,
+    uuidv4
 };
 
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio::sync::mpsc::Sender;
 
-use std::{pin::Pin, sync::Arc, thread::sleep, time::Duration};
+use std::{pin::Pin, sync::Arc, time::Duration};
 
 use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
@@ -29,18 +30,19 @@ impl Commander for CommanderServer {
         &self,
         req: Request<Streaming<Message>>,
     ) -> ChannelResult<Self::ChannelStream> {
-        println!("|{}| new client connected", timenow());
+        let ch_id = uuidv4();
+        println!("|{}| new client connected {}", timenow(), ch_id);
 
         let in_stream: Streaming<Message> = req.into_inner();
         let (mut tx, rx) = mpsc::channel(1);
 
-        println!("|{}| sending welcome message", timenow());
+        println!("|{}| sending welcome message {}", timenow(), ch_id);
         send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
-    
-        let stream_reference_counter = Arc::new(tx);
+
+        let stream_reference_counter = Arc::new(tx.clone());
 
         let heartbeat_manager_stream = Arc::clone(&stream_reference_counter);
-        let heartbeat_handle = tokio::spawn(heartbeat_sender(heartbeat_manager_stream));
+        let heartbeat_handle = tokio::spawn(heartbeat_sender(heartbeat_manager_stream, ch_id));
 
         let server_event_manager_stream = Arc::clone(&stream_reference_counter);
         tokio::spawn(server_manager(in_stream, server_event_manager_stream, heartbeat_handle));
@@ -50,14 +52,25 @@ impl Commander for CommanderServer {
     }
 }
 
-async fn heartbeat_sender(tx: Arc<Sender<Result<Message, Status>>>) {
+async fn heartbeat_sender(tx: Arc<Sender<Result<Message, Status>>>, ch_id: String) {
+    println!("|{}| setup heartbeat {}", timenow(), ch_id);
     loop {
-        sleep(Duration::from_secs(5));
-        println!("|{}| sending heartbeat", timenow());
-        let message = build_message_or_print_error(HEARTBEAT_EVENT, b"");
-        // TODO: try to use send2client instead
-        let _ = tx.send(Ok(message)).await;
-    } 
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                println!("|{}| sending heartbeat {}", timenow(), ch_id);
+                let message = build_message_or_print_error(HEARTBEAT_EVENT, b"");
+                // TODO: try to use send2client instead
+                let sent = tx.send(Ok(message)).await;
+                if sent.is_err() {
+                    println!("|{}| failed to send heartbeat {} err {:#?}", timenow(), ch_id, sent.unwrap_err());
+                }
+            },
+            else => {
+                println!("|{}| stopping heartbeat {}", timenow(), ch_id);
+                break;
+            }
+        }
+    }
 }
 
 async fn server_manager(mut in_stream: Streaming<Message>, tx: Arc<Sender<Result<Message, Status>>>, join_handle: JoinHandle<()>) {
@@ -70,6 +83,7 @@ async fn server_manager(mut in_stream: Streaming<Message>, tx: Arc<Sender<Result
             Err(err) => {
                 println!("|{time}| received error from client: {:#?}", err, time=timenow());
                 join_handle.abort();
+                println!("|{time}| handle aborted", time=timenow());
                 break;
             }
         }

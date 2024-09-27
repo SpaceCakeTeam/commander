@@ -1,5 +1,6 @@
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
+use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 
 use messages::{
@@ -14,7 +15,7 @@ use super::k8scommands::retrieve_k8s_version_and_build_message;
 
 const VERSION: &str = "1";
 
-pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
+pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>, cancellation_token: CancellationToken) {
     println!("|{}| agent started", timenow());
 
     let (mut tx, rx) = mpsc::channel(1);
@@ -27,22 +28,29 @@ pub async fn agent_stream_manager(client: &mut CommanderClient<Channel>) {
 
     let mut resp_stream = response.into_inner();
     loop {
-        match resp_stream.next().await {
-            Some(received) => {
-                let received = received.unwrap();
-                println!("|{time}| received message {name}: {:#?}", std::str::from_utf8(&received.payload).ok().unwrap(), name=&received.name, time=&received.timestamp);
+        tokio::select! {
+            received_from_stream = resp_stream.next() => {
+                match received_from_stream {
+                    Some(received) => {
+                        let received = received.unwrap();
+                        println!("|{time}| received message {name}: {:#?}", std::str::from_utf8(&received.payload).ok().unwrap(), name=&received.name, time=&received.timestamp);
 
-                let resp = get_response_message(received).await;
-                match resp {
-                    Some(message_to_send) => send2server(&mut tx, message_to_send).await,
-                    _ => (),
+                        let resp = get_response_message(received).await;
+                        match resp {
+                            Some(message_to_send) => send2server(&mut tx, message_to_send).await,
+                            _ => (),
+                        }
+
+                        println!("|{}| processed message", timenow());
+                    },
+                    None => {
+                        println!("|{}| Received None from stream :(", timenow());
+                        break;
+                    }
                 }
-
-                println!("|{}| processed message", timenow());
-            },
-            None => {
-                println!("|{}| Received None from stream :(", timenow());
-                break;
+            }
+            _ = cancellation_token.cancelled() => {
+                println!("|{}| received cancellation signal", timenow());
             }
         }
     }

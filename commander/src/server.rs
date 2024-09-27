@@ -39,7 +39,7 @@ impl Commander for CommanderServer {
         println!("|{}| sending welcome message {}", timenow(), ch_id);
         send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
 
-        let stream_reference_counter = Arc::new(tx.clone());
+        let stream_reference_counter = Arc::new(tx);
 
         let heartbeat_manager_stream = Arc::clone(&stream_reference_counter);
         let heartbeat_handle = tokio::spawn(heartbeat_sender(heartbeat_manager_stream, ch_id));

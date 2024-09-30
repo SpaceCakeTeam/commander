@@ -44,7 +44,7 @@ sequenceDiagram
 - create server to receive connection from agent
 - exposes endpoint to receive commands from an API
 - once invoked the API, send the command to agent to get K8s version
-- print the k8s version
+- reply to api with the k8s version
 
 ### Agent
 

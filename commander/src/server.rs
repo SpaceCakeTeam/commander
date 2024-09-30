@@ -1,3 +1,9 @@
+use std::{pin::Pin, sync::Arc, time::Duration};
+use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::sync::mpsc::Sender;
+use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
+use tonic::{Request, Response, Status, Streaming};
+
 use messages::{
     build_message_or_print_error,
     definitions::{HANDSHAKE_COMMAND, HEARTBEAT_EVENT, K8S_GET_VERSION_COMMAND, VERSION_NAME_MESSAGE},
@@ -7,24 +13,25 @@ use messages::{
     uuidv4
 };
 
-use tokio::{sync::mpsc, task::JoinHandle};
-use tokio::sync::mpsc::Sender;
-
-use std::{pin::Pin, sync::Arc, time::Duration};
-
-use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
-use tonic::{Request, Response, Status, Streaming};
+use crate::connection_map::{ConnectionInfo, ConnectionMap};
 
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<Message, Status>> + Send>>;
 
 type ChannelResult<T> = Result<Response<T>, Status>;
 
 #[derive(Debug)]
-pub struct CommanderServer {}
+pub struct CommanderServer {
+    connections: ConnectionMap<'a>
+}
+
 
 #[tonic::async_trait]
 impl Commander for CommanderServer {
     type ChannelStream = ResponseStream;
+
+    // TODO: create connection map
+
+    // TODO: method used by APIs to get a connection reference from the map and send command
 
     async fn channel(
         &self,
@@ -35,6 +42,12 @@ impl Commander for CommanderServer {
 
         let in_stream: Streaming<Message> = req.into_inner();
         let (mut tx, rx) = mpsc::channel(1);
+
+
+        let info = ConnectionInfo{
+            ch_id: ch_id,
+        };
+        // TODO: add connection record reference to map
 
         println!("|{}| sending welcome message {}", timenow(), ch_id);
         send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
@@ -84,6 +97,7 @@ async fn server_manager(mut in_stream: Streaming<Message>, tx: Arc<Sender<Result
                 println!("|{time}| received error from client: {:#?}", err, time=timenow());
                 join_handle.abort();
                 println!("|{time}| handle aborted", time=timenow());
+                // TODO: drop connection record reference to map
                 break;
             }
         }

@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let grpc_server_port = 50051;
     println!("Starting gRPC server on port {}", grpc_server_port);
-    let server = server::CommanderServer {};
+    let server = server::CommanderServer::new();
     Server::builder()
         .add_service(messages::pb::commander_server::CommanderServer::new(server))
         .serve(format!("[::0]:{}", grpc_server_port).to_socket_addrs().unwrap().next().unwrap())

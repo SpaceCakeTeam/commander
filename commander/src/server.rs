@@ -12,18 +12,26 @@ use messages::{
     timenow,
     uuidv4
 };
-
+use std::sync::Mutex;
 use crate::connection_map::{ConnectionInfo, ConnectionMap};
 
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<Message, Status>> + Send>>;
-
 type ChannelResult<T> = Result<Response<T>, Status>;
+
+type SharedConnectionMapReference = Arc<Mutex<ConnectionMap>>;
 
 #[derive(Debug)]
 pub struct CommanderServer {
-    connections: ConnectionMap<'a>
+    connections: SharedConnectionMapReference
 }
 
+impl CommanderServer {
+    pub fn new()->Self {
+        Self{
+            connections: Arc::new(Mutex::new(ConnectionMap::new()))
+        }
+    }
+}
 
 #[tonic::async_trait]
 impl Commander for CommanderServer {
@@ -43,22 +51,28 @@ impl Commander for CommanderServer {
         let in_stream: Streaming<Message> = req.into_inner();
         let (mut tx, rx) = mpsc::channel(1);
 
-
         let info = ConnectionInfo{
-            ch_id: ch_id,
+            channel_id: ch_id.clone(),
+            // TODO: provide stream primitives (e.g. tx and rx)
         };
-        // TODO: add connection record reference to map
+        self.connections.lock().unwrap().set(&ch_id, info);
 
-        println!("|{}| sending welcome message {}", timenow(), ch_id);
+        println!("|{}|{}| sending welcome message", timenow(), ch_id);
         send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
 
         let stream_reference_counter = Arc::new(tx);
 
         let heartbeat_manager_stream = Arc::clone(&stream_reference_counter);
-        let heartbeat_handle = tokio::spawn(heartbeat_sender(heartbeat_manager_stream, ch_id));
+        let heartbeat_handle = tokio::spawn(heartbeat_sender(heartbeat_manager_stream, ch_id.clone()));
 
         let server_event_manager_stream = Arc::clone(&stream_reference_counter);
-        tokio::spawn(server_manager(in_stream, server_event_manager_stream, heartbeat_handle));
+        tokio::spawn(server_manager(
+            ch_id.clone(),
+            in_stream,
+            server_event_manager_stream,
+            heartbeat_handle,
+            self.connections.clone(),
+        ));
 
         let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
         Ok(Response::new(Box::pin(out_stream) as Self::ChannelStream))
@@ -86,18 +100,25 @@ async fn heartbeat_sender(tx: Arc<Sender<Result<Message, Status>>>, ch_id: Strin
     }
 }
 
-async fn server_manager(mut in_stream: Streaming<Message>, tx: Arc<Sender<Result<Message, Status>>>, join_handle: JoinHandle<()>) {
+async fn server_manager(
+    channel_id: String,
+    mut in_stream: Streaming<Message>,
+    tx: Arc<Sender<Result<Message, Status>>>,
+    heartbeat_join_handle: JoinHandle<()>,
+    connections: SharedConnectionMapReference,
+) {
     while let Some(result) = in_stream.next().await {
         match result {
             Ok(v) => {
-                println!("|{time}| received message {name}: {:#?}", std::str::from_utf8(&v.payload).ok().unwrap(), name=&v.name, time=&v.timestamp);
+                println!("|{time}|{chid}| received message {name}: {:#?}", std::str::from_utf8(&v.payload).ok().unwrap(), name=&v.name, time=&v.timestamp, chid=channel_id);
                 process_message_and_response(v, tx.clone()).await;
             },
             Err(err) => {
-                println!("|{time}| received error from client: {:#?}", err, time=timenow());
-                join_handle.abort();
-                println!("|{time}| handle aborted", time=timenow());
-                // TODO: drop connection record reference to map
+                println!("|{time}|{chid}| received error from client: {:#?}", err, time=timenow(), chid=channel_id);
+                heartbeat_join_handle.abort();
+                println!("|{time}|{chid}| handle aborted", time=timenow(), chid=channel_id);
+                connections.lock().unwrap().rem(&channel_id);
+                println!("|{time}|{chid}| dropped connection from internal state", time=timenow(), chid=channel_id);
                 break;
             }
         }

@@ -31,6 +31,11 @@ impl Commander {
         self.connections.lock().unwrap().keys().cloned().collect()
     }
 
+    pub fn get_connection(&self, ch_id: String) -> Arc<Option<ConnectionInfo>> {
+        let connections = self.connections.lock().unwrap();
+        Arc::new(connections.get(&ch_id).cloned())
+    }
+
     pub fn register(&self, key: &String, info: ConnectionInfo) {
         self.connections.lock().unwrap().set(key, info);
       }

@@ -1,9 +1,32 @@
 use std::collections::{hash_map::Keys, HashMap};
 
-#[derive(Debug,PartialEq)]
+use messages::pb::Message;
+use tokio::sync::mpsc::Sender;
+use tonic::Status;
+
+#[derive(Debug, Clone)]
 pub struct ConnectionInfo {
-    pub channel_id: String
-    // TODO: add references to tx/rx
+    pub channel_id: String,
+    tx: Sender<Result<Message, Status>>,
+}
+
+impl PartialEq for ConnectionInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.channel_id == other.channel_id
+    }
+}
+
+impl ConnectionInfo {
+    pub fn new(channel_id: String, tx: Sender<Result<Message, Status>>) -> Self {
+        Self {
+            channel_id,
+            tx,
+        }
+    }
+
+    pub async fn send(&self, message: Message) {
+        let _ = self.tx.send(Ok(message)).await;
+    }
 }
 
 #[derive(Debug)]
@@ -40,22 +63,24 @@ mod connection_map_tests {
     #[test]
     fn test_set_and_get() {
         let test_info= ConnectionInfo{
-            channel_id: "some-id".to_string()
+            channel_id: "some-id".to_string(),
+            tx: tokio::sync::mpsc::channel(1).0,
         };
 
         let mut map = ConnectionMap::new();
         map.set(&"test".to_string(), test_info);
 
         assert_eq!(map.get(&"test".to_string()), Some(&ConnectionInfo{
-            channel_id: "some-id".to_string()
+            channel_id: "some-id".to_string(),
+            tx: tokio::sync::mpsc::channel(1).0,
         }));
     }
-
 
     #[test]
     fn test_get_unknown_key() {
         let test_info= ConnectionInfo{
-            channel_id: "some-id".to_string()
+            channel_id: "some-id".to_string(),
+            tx: tokio::sync::mpsc::channel(1).0,
         };
 
         let mut map = ConnectionMap::new();

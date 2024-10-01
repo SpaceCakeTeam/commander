@@ -47,10 +47,7 @@ impl Commander for CommanderServer {
         let in_stream: Streaming<Message> = req.into_inner();
         let (mut tx, rx) = mpsc::channel(1);
 
-        let info = ConnectionInfo{
-            channel_id: ch_id.clone(),
-            // TODO: provide stream primitives (e.g. tx and rx)
-        };
+        let info = ConnectionInfo::new(ch_id.clone(), tx.clone());
         self.state.register(&ch_id, info);
 
         println!("|{}|{}| sending welcome message", timenow(), ch_id);

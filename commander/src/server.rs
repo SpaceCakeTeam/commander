@@ -12,23 +12,21 @@ use messages::{
     timenow,
     uuidv4
 };
-use std::sync::Mutex;
-use crate::connection_map::{ConnectionInfo, ConnectionMap};
+use crate::commander_state::Commander as CommanderState;
+use crate::connection_map::ConnectionInfo;
 
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<Message, Status>> + Send>>;
 type ChannelResult<T> = Result<Response<T>, Status>;
 
-type SharedConnectionMapReference = Arc<Mutex<ConnectionMap>>;
-
 #[derive(Debug)]
 pub struct CommanderServer {
-    connections: SharedConnectionMapReference
+    state: Arc<CommanderState>,
 }
 
 impl CommanderServer {
-    pub fn new()->Self {
+    pub fn new(state: Arc<CommanderState>)->Self {
         Self{
-            connections: Arc::new(Mutex::new(ConnectionMap::new()))
+            state: state
         }
     }
 }
@@ -36,8 +34,6 @@ impl CommanderServer {
 #[tonic::async_trait]
 impl Commander for CommanderServer {
     type ChannelStream = ResponseStream;
-
-    // TODO: create connection map
 
     // TODO: method used by APIs to get a connection reference from the map and send command
 
@@ -55,7 +51,7 @@ impl Commander for CommanderServer {
             channel_id: ch_id.clone(),
             // TODO: provide stream primitives (e.g. tx and rx)
         };
-        self.connections.lock().unwrap().set(&ch_id, info);
+        self.state.register(&ch_id, info);
 
         println!("|{}|{}| sending welcome message", timenow(), ch_id);
         send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
@@ -71,7 +67,7 @@ impl Commander for CommanderServer {
             in_stream,
             server_event_manager_stream,
             heartbeat_handle,
-            self.connections.clone(),
+            self.state.clone(),
         ));
 
         let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
@@ -105,7 +101,7 @@ async fn server_manager(
     mut in_stream: Streaming<Message>,
     tx: Arc<Sender<Result<Message, Status>>>,
     heartbeat_join_handle: JoinHandle<()>,
-    connections: SharedConnectionMapReference,
+    state: Arc<CommanderState>,
 ) {
     while let Some(result) = in_stream.next().await {
         match result {
@@ -117,7 +113,7 @@ async fn server_manager(
                 println!("|{time}|{chid}| received error from client: {:#?}", err, time=timenow(), chid=channel_id);
                 heartbeat_join_handle.abort();
                 println!("|{time}|{chid}| handle aborted", time=timenow(), chid=channel_id);
-                connections.lock().unwrap().rem(&channel_id);
+                state.unregister(&channel_id);
                 println!("|{time}|{chid}| dropped connection from internal state", time=timenow(), chid=channel_id);
                 break;
             }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{hash_map::Keys, HashMap};
 
 #[derive(Debug,PartialEq)]
 pub struct ConnectionInfo {
@@ -27,6 +27,10 @@ impl ConnectionMap {
     pub fn rem(&mut self, key: &String) {
         self.hashmap.remove(key);
     }
+
+    pub fn keys(&self) -> Keys<String, ConnectionInfo> {
+        self.hashmap.keys()
+    }
 }
 
 #[cfg(test)]
@@ -38,8 +42,8 @@ mod connection_map_tests {
         let test_info= ConnectionInfo{
             channel_id: "some-id".to_string()
         };
-    
-        let mut map = ConnectionMap::new();        
+
+        let mut map = ConnectionMap::new();
         map.set(&"test".to_string(), test_info);
 
         assert_eq!(map.get(&"test".to_string()), Some(&ConnectionInfo{
@@ -53,8 +57,8 @@ mod connection_map_tests {
         let test_info= ConnectionInfo{
             channel_id: "some-id".to_string()
         };
-    
-        let mut map = ConnectionMap::new();        
+
+        let mut map = ConnectionMap::new();
         map.set(&"test".to_string(), test_info);
 
         assert_eq!(map.get(&"test2".to_string()), None);

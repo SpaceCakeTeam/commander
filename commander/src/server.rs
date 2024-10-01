@@ -35,8 +35,6 @@ impl CommanderServer {
 impl Commander for CommanderServer {
     type ChannelStream = ResponseStream;
 
-    // TODO: method used by APIs to get a connection reference from the map and send command
-
     async fn channel(
         &self,
         req: Request<Streaming<Message>>,

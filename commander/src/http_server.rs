@@ -27,7 +27,6 @@ impl CommanderAPI {
         let commander_state_events = self.commander_state.clone();
 
         let app = Router::new()
-        // FIXME: user must provide an id for the desired connection for which the version shall be required!
         .route("/channels/:channel_id/version", get(|Path(channel_id): Path<String>| version_handler(commander_state_version, channel_id)))
         .route("/clients", get(|| active_clients_handler(commander_state_clients)))
         .route("/events", get(|| get_events_handler(commander_state_events)));

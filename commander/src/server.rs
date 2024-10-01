@@ -12,7 +12,7 @@ use messages::{
     timenow,
     uuidv4
 };
-use crate::commander_state::Commander as CommanderState;
+use crate::commander_state::{Commander as CommanderState, Event};
 use crate::connection_map::ConnectionInfo;
 
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<Message, Status>> + Send>>;
@@ -105,9 +105,15 @@ async fn server_manager(
 ) {
     while let Some(result) = in_stream.next().await {
         match result {
-            Ok(v) => {
-                println!("|{time}|{chid}| received message {name}: {:#?}", std::str::from_utf8(&v.payload).ok().unwrap(), name=&v.name, time=&v.timestamp, chid=channel_id);
-                process_message_and_response(v, tx.clone()).await;
+            Ok(message) => {
+                let event = Event {
+                    message: message.clone(),
+                    channel_id: channel_id.clone(),
+                    timestamp: timenow(),
+                };
+                state.collect(&event);
+                println!("|{time}|{chid}| received message {name}: {:#?}", std::str::from_utf8(&message.payload).ok().unwrap(), name=&message.name, time=&message.timestamp, chid=channel_id);
+                process_message_and_response(message, tx.clone()).await;
             },
             Err(err) => {
                 println!("|{time}|{chid}| received error from client: {:#?}", err, time=timenow(), chid=channel_id);

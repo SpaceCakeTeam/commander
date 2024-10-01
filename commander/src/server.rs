@@ -1,3 +1,9 @@
+use std::{pin::Pin, sync::Arc, time::Duration};
+use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::sync::mpsc::Sender;
+use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
+use tonic::{Request, Response, Status, Streaming};
+
 use messages::{
     build_message_or_print_error,
     definitions::{HANDSHAKE_COMMAND, HEARTBEAT_EVENT, K8S_GET_VERSION_COMMAND, VERSION_NAME_MESSAGE},
@@ -6,21 +12,24 @@ use messages::{
     timenow,
     uuidv4
 };
-
-use tokio::{sync::mpsc, task::JoinHandle};
-use tokio::sync::mpsc::Sender;
-
-use std::{pin::Pin, sync::Arc, time::Duration};
-
-use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
-use tonic::{Request, Response, Status, Streaming};
+use crate::commander_state::{Commander as CommanderState, Event};
+use crate::connection_map::ConnectionInfo;
 
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<Message, Status>> + Send>>;
-
 type ChannelResult<T> = Result<Response<T>, Status>;
 
 #[derive(Debug)]
-pub struct CommanderServer {}
+pub struct CommanderServer {
+    state: Arc<CommanderState>,
+}
+
+impl CommanderServer {
+    pub fn new(state: Arc<CommanderState>)->Self {
+        Self{
+            state: state
+        }
+    }
+}
 
 #[tonic::async_trait]
 impl Commander for CommanderServer {
@@ -36,16 +45,25 @@ impl Commander for CommanderServer {
         let in_stream: Streaming<Message> = req.into_inner();
         let (mut tx, rx) = mpsc::channel(1);
 
-        println!("|{}| sending welcome message {}", timenow(), ch_id);
+        let info = ConnectionInfo::new(ch_id.clone(), tx.clone());
+        self.state.register(&ch_id, info);
+
+        println!("|{}|{}| sending welcome message", timenow(), ch_id);
         send2client(&mut tx, build_message_or_print_error(HANDSHAKE_COMMAND, b"")).await;
 
         let stream_reference_counter = Arc::new(tx);
 
         let heartbeat_manager_stream = Arc::clone(&stream_reference_counter);
-        let heartbeat_handle = tokio::spawn(heartbeat_sender(heartbeat_manager_stream, ch_id));
+        let heartbeat_handle = tokio::spawn(heartbeat_sender(heartbeat_manager_stream, ch_id.clone()));
 
         let server_event_manager_stream = Arc::clone(&stream_reference_counter);
-        tokio::spawn(server_manager(in_stream, server_event_manager_stream, heartbeat_handle));
+        tokio::spawn(server_manager(
+            ch_id.clone(),
+            in_stream,
+            server_event_manager_stream,
+            heartbeat_handle,
+            self.state.clone(),
+        ));
 
         let out_stream: ReceiverStream<Result<Message, Status>> = ReceiverStream::new(rx);
         Ok(Response::new(Box::pin(out_stream) as Self::ChannelStream))
@@ -73,17 +91,31 @@ async fn heartbeat_sender(tx: Arc<Sender<Result<Message, Status>>>, ch_id: Strin
     }
 }
 
-async fn server_manager(mut in_stream: Streaming<Message>, tx: Arc<Sender<Result<Message, Status>>>, join_handle: JoinHandle<()>) {
+async fn server_manager(
+    channel_id: String,
+    mut in_stream: Streaming<Message>,
+    tx: Arc<Sender<Result<Message, Status>>>,
+    heartbeat_join_handle: JoinHandle<()>,
+    state: Arc<CommanderState>,
+) {
     while let Some(result) = in_stream.next().await {
         match result {
-            Ok(v) => {
-                println!("|{time}| received message {name}: {:#?}", std::str::from_utf8(&v.payload).ok().unwrap(), name=&v.name, time=&v.timestamp);
-                process_message_and_response(v, tx.clone()).await;
+            Ok(message) => {
+                let event = Event {
+                    message: message.clone(),
+                    channel_id: channel_id.clone(),
+                    timestamp: timenow(),
+                };
+                state.collect(&event);
+                println!("|{time}|{chid}| received message {name}: {:#?}", std::str::from_utf8(&message.payload).ok().unwrap(), name=&message.name, time=&message.timestamp, chid=channel_id);
+                process_message_and_response(message, tx.clone()).await;
             },
             Err(err) => {
-                println!("|{time}| received error from client: {:#?}", err, time=timenow());
-                join_handle.abort();
-                println!("|{time}| handle aborted", time=timenow());
+                println!("|{time}|{chid}| received error from client: {:#?}", err, time=timenow(), chid=channel_id);
+                heartbeat_join_handle.abort();
+                println!("|{time}|{chid}| handle aborted", time=timenow(), chid=channel_id);
+                state.unregister(&channel_id);
+                println!("|{time}|{chid}| dropped connection from internal state", time=timenow(), chid=channel_id);
                 break;
             }
         }

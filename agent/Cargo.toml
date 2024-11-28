@@ -11,3 +11,4 @@ tokio-stream = "0.1.15"
 h2 = "0.4.5"
 messages = { path = "../messages" }
 kubernetes-client = { path = "../kubernetes-client" }
+tokio-util = "0.7.12"
